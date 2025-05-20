@@ -1,41 +1,43 @@
-import { NextResponse } from "next/server"
-import { connectToDatabase } from "@/lib/mongodb"
-import { User } from "@/models/User"
-import jwt from "jsonwebtoken"
-import { cookies } from "next/headers"
+import mongoose from "mongoose";
 
-export async function GET() {
-  try {
-    // Get token from cookies
-    const token = cookies().get("auth_token")?.value
+const UserSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: [true, "Please provide a name"],
+    maxlength: [60, "Name cannot be more than 60 characters"],
+  },
+  email: {
+    type: String,
+    required: [true, "Please provide an email"],
+    unique: true,
+    match: [/^\S+@\S+\.\S+$/, "Please provide a valid email"],
+  },
+  password: {
+    type: String,
+    required: [true, "Please provide a password"],
+    minlength: [6, "Password must be at least 6 characters"],
+  },
+  role: {
+    type: String,
+    enum: ["user", "admin", "super_admin"],
+    default: "user",
+  },
+  googleId: String,
+  profilePicture: String,
+  phone: String,
+  addresses: [
+    {
+      type: {
+        type: String,
+        enum: ["home", "work", "other"],
+        default: "home",
+      },
+      address: String,
+    },
+  ],
+});
 
-    if (!token) {
-      return NextResponse.json({ message: "Not authenticated" }, { status: 401 })
-    }
+// Prevent model overwrite in development
+const User = mongoose.models.User || mongoose.model("User", UserSchema);
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET)
-
-    // Connect to the database
-    await connectToDatabase()
-
-    // Find user
-    const user = await User.findById(decoded.userId).select("-password")
-    if (!user) {
-      return NextResponse.json({ message: "User not found" }, { status: 404 })
-    }
-
-    // Return user data
-    const userData = {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    }
-
-    return NextResponse.json(userData)
-  } catch (error) {
-    console.error("Authentication check error:", error)
-    return NextResponse.json({ message: "Not authenticated" }, { status: 401 })
-  }
-}
+export default User;
